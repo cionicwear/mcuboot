@@ -29,6 +29,7 @@
 #define H_BOOTUTIL_
 
 #include <inttypes.h>
+#include "mcuboot_config/mcuboot_config.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,7 +59,6 @@ extern "C" {
 /** Swapping encountered an unrecoverable error */
 #define BOOT_SWAP_TYPE_PANIC    0xff
 
-#define BOOT_MAX_ALIGN          8
 
 struct image_header;
 /**

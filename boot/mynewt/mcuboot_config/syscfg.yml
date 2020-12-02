@@ -101,3 +101,6 @@ syscfg.defs:
     BOOTUTIL_FEED_WATCHDOG:
         description: 'Enable watchdog feeding while performing a swap upgrade'
         value: 0
+    BOOTUTIL_MAX_ALIGN:
+        description: 'Set the flash alignement'
+        value: 8
