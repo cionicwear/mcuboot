@@ -51,6 +51,7 @@
 #include <os/os_malloc.h>
 
 #include <bootutil/image.h>
+#include "bootutil/bootutil.h"
 
 #include "boot_serial/boot_serial.h"
 #include "boot_serial_priv.h"
@@ -63,7 +64,7 @@
 
 MCUBOOT_LOG_MODULE_DECLARE(mcuboot);
 
-#define BOOT_SERIAL_INPUT_MAX   512
+#define BOOT_SERIAL_INPUT_MAX   128
 #define BOOT_SERIAL_OUT_MAX     128
 
 #ifdef __ZEPHYR__
@@ -288,8 +289,16 @@ bs_upload(char *buf, int len)
          */
         goto out_invalid_data;
     }
-
-    rc = flash_area_open(flash_area_id_from_multi_image_slot(img_num, 0), &fap);
+    if (data_len == 0 && off == 0) {
+        /* Added this to set image pend */
+        curr_off = 0;
+        rc = boot_set_pending(true);
+        if (rc) {
+            rc = MGMT_ERR_SETPEND;
+        }
+        goto out;
+    }
+    rc = flash_area_open(flash_area_id_from_multi_image_slot(img_num, img_num), &fap);
     if (rc) {
         rc = MGMT_ERR_EINVAL;
         goto out;
@@ -368,7 +377,7 @@ bs_upload(char *buf, int len)
 
 out:
     BOOT_LOG_INF("RX: 0x%x", rc);
-    cbor_encoder_create_map(&bs_root, &bs_rsp, CborIndefiniteLength);
+    cbor_encoder_create_map(&bs_root, &bs_rsp, rc?1:2);
     cbor_encode_text_stringz(&bs_rsp, "rc");
     cbor_encode_int(&bs_rsp, rc);
     if (rc == 0) {
@@ -387,7 +396,7 @@ out:
 static void
 bs_empty_rsp(char *buf, int len)
 {
-    cbor_encoder_create_map(&bs_root, &bs_rsp, CborIndefiniteLength);
+    cbor_encoder_create_map(&bs_root, &bs_rsp, 1);
     cbor_encode_text_stringz(&bs_rsp, "rc");
     cbor_encode_int(&bs_rsp, 0);
     cbor_encoder_close_container(&bs_root, &bs_rsp);

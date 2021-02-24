@@ -37,6 +37,7 @@ extern "C" {
  * From newtmgr.h
  */
 #define MGMT_ERR_EINVAL         3
+#define MGMT_ERR_SETPEND        4
 
 #define NMGR_OP_READ            0
 #define NMGR_OP_WRITE           2
@@ -61,6 +62,8 @@ struct nmgr_hdr {
  */
 #define IMGMGR_NMGR_ID_STATE            0
 #define IMGMGR_NMGR_ID_UPLOAD           1
+#define IMGMGR_NMGR_ID_SETPEND          2
+
 
 void boot_serial_input(char *buf, int len);
 extern const struct boot_uart_funcs *boot_uf;
