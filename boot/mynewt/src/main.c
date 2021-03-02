@@ -171,6 +171,9 @@ serial_boot_detect(void)
      * If it matches, await for download commands from serial.
      */
 #if MYNEWT_VAL(BOOT_SERIAL_DETECT_PIN) != -1
+#if MYNEWT_VAL(BOOT_SERIAL_RS485)
+    hal_gpio_init_out(MYNEWT_VAL(BOOT_SERIAL_RS485_PIN),0);
+#endif
     hal_gpio_init_in(MYNEWT_VAL(BOOT_SERIAL_DETECT_PIN),
                      MYNEWT_VAL(BOOT_SERIAL_DETECT_PIN_CFG));
     if (hal_gpio_read(MYNEWT_VAL(BOOT_SERIAL_DETECT_PIN)) ==

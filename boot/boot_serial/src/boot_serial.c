@@ -55,7 +55,7 @@
 
 #include "boot_serial/boot_serial.h"
 #include "boot_serial_priv.h"
-
+#include "hal/hal_gpio.h"
 #ifdef CONFIG_BOOT_ERASE_PROGRESSIVELY
 #include "bootutil_priv.h"
 #endif
@@ -106,6 +106,14 @@ static struct cbor_encoder_writer bs_writer = {
 };
 static CborEncoder bs_root;
 static CborEncoder bs_rsp;
+
+static void
+uarte_rs485_term(bool val)
+{
+#if MYNEWT_VAL(BOOT_SERIAL_RS485)
+    hal_gpio_write(MYNEWT_VAL(BOOT_SERIAL_RS485_PIN),val);
+#endif
+}
 
 int
 bs_cbor_writer(struct cbor_encoder_writer *cew, const char *data, int len)
@@ -180,9 +188,9 @@ bs_list(char *buf, int len)
     const struct flash_area *fap;
     uint8_t image_index;
 
-    cbor_encoder_create_map(&bs_root, &bs_rsp, CborIndefiniteLength);
+    cbor_encoder_create_map(&bs_root, &bs_rsp, 1);
     cbor_encode_text_stringz(&bs_rsp, "images");
-    cbor_encoder_create_array(&bs_rsp, &images, CborIndefiniteLength);
+    cbor_encoder_create_array(&bs_rsp, &images, 1);
     image_index = 0;
     IMAGES_ITER(image_index) {
         for (slot = 0; slot < 2; slot++) {
@@ -201,7 +209,7 @@ bs_list(char *buf, int len)
             }
             flash_area_close(fap);
 
-            cbor_encoder_create_map(&images, &image, CborIndefiniteLength);
+            cbor_encoder_create_map(&images, &image, 2);
 
 #if (BOOT_IMAGE_NUMBER > 1)
             cbor_encode_text_stringz(&image, "image");
@@ -388,6 +396,16 @@ out:
 
     boot_serial_output();
     flash_area_close(fap);
+
+    /*  This is ugly, works for Baud 230400
+        Needed because the TX done happens before 
+        all bytes are sent on bus */
+    for (int i = 0; i < 1500; ++i) {
+        __NOP();
+        __NOP();
+        __NOP();
+    }
+    uarte_rs485_term(0);
 }
 
 /*
@@ -484,7 +502,7 @@ boot_serial_output(void)
     char pkt_start[2] = { SHELL_NLIP_PKT_START1, SHELL_NLIP_PKT_START2 };
     char buf[BOOT_SERIAL_OUT_MAX];
     char encoded_buf[BASE64_ENCODE_SIZE(BOOT_SERIAL_OUT_MAX)];
-
+    uarte_rs485_term(1);
     data = bs_obuf;
     len = bs_writer.bytes_written;
 
@@ -615,13 +633,19 @@ boot_serial_start(const struct boot_uart_funcs *f)
             }
             continue;
         }
-        if (in_buf[0] == SHELL_NLIP_PKT_START1 &&
-          in_buf[1] == SHELL_NLIP_PKT_START2) {
+        char *p_buf = &in_buf[0];
+        /*  When switching drivers, there can be noise on the uart line.
+            Igone all preceding dummy bytes */
+        while(p_buf[0] != SHELL_NLIP_DATA_START1 && p_buf[0] != SHELL_NLIP_PKT_START1) {
+            p_buf++;
+        }
+        if (p_buf[0] == SHELL_NLIP_PKT_START1 &&
+          p_buf[1] == SHELL_NLIP_PKT_START2) {
             dec_off = 0;
-            rc = boot_serial_in_dec(&in_buf[2], off - 2, dec_buf, &dec_off, max_input);
-        } else if (in_buf[0] == SHELL_NLIP_DATA_START1 &&
-          in_buf[1] == SHELL_NLIP_DATA_START2) {
-            rc = boot_serial_in_dec(&in_buf[2], off - 2, dec_buf, &dec_off, max_input);
+            rc = boot_serial_in_dec(&p_buf[2], off - 2, dec_buf, &dec_off, max_input);
+        } else if (p_buf[0] == SHELL_NLIP_DATA_START1 &&
+          p_buf[1] == SHELL_NLIP_DATA_START2) {
+            rc = boot_serial_in_dec(&p_buf[2], off - 2, dec_buf, &dec_off, max_input);
         }
 
         /* serve errors: out of decode memory, or bad encoding */
